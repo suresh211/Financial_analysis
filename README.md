@@ -10,12 +10,10 @@ credit-card-dax-analytics/
 ├── data/
 │   ├── raw/credit_card_data_RAW.csv       # before cleaning
 │   └── clean/credit_card_data_CLEAN.csv   # after cleaning
-├── dax/measures.dax                       # all 15 formulas, plain text
 ├── docs/
 │   ├── Credit_Card_Analytics.pptx         # problem + solution deck
 │   └── data_dictionary.md                 # column-by-column reference
 ├── reports/findings.md                    # actual results once run in Power BI
-└── images/screenshots/                    # report screenshots
 ```
 
 
