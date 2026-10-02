@@ -297,7 +297,7 @@ var revolvingratio=DIVIDE(AVERAGE(credit_card[Total_Revolving_Bal]),
 AVERAGE(credit_card[Credit_Limit]),0)
 var utilization_ratio= AVERAGE(credit_card[Avg_Utilization_Ratio])
 RETURN if(revolvingratio<0.9 && utilization_ratio>0.7,"High_flag","normal")
-![Uploading image.png…]()
+
 
 ```
 
