@@ -55,15 +55,11 @@ The one exception is the **Credit Risk Score** (#11): it's a weighted 0–100 po
 
 A cumulative sum of transaction amount up to the current date in context — each point on the trend shows everything spent so far, not just that period.
 
-```dax
-Running Total Trans Amt =
-CALCULATE(
-    SUM(CC[Total_Trans_Amt]),
-    FILTER(
-        ALLSELECTED(CC),
-        CC[Txn_Date] <= MAX(CC[Txn_Date])
-    )
-)
+```Running_total = CALCULATE([total_trans_amount],
+FILTER(ALL(Calender[Date]),Calender[Date]
+<=MAX(Calender[Date])))
+<img width="740" height="124" alt="image" src="https://github.com/user-attachments/assets/e0758234-dc5a-411f-b465-d2ce92ff2307" />
+
 ```
 
 **Business read:** Plot on a line chart by date to reveal acceleration or plateaus in overall spend.
@@ -73,15 +69,14 @@ CALCULATE(
 Smooths short-term noise by averaging `creditLimit` over the trailing 28 days for each client, so limit-policy trends read clearly.
 
 ```dax
-CreditLimit 4W Avg =
-AVERAGEX(
-    DATESINPERIOD(
-        'Date'[Date],
-        MAX('Date'[Date]),
-        -28, DAY
-    ),
-    CALCULATE(AVERAGE(CC[creditLimit]))
-)
+4_week_moving average = 
+var time_period=FILTER(ALL(Calender),Calender[week_num]>=MAX
+(Calender[week_num])-3 && Calender[week_num]<=MAX(Calender[week_num]))
+var rev_per_period=CALCULATE(SUM(credit_card[Credit_Limit]),time_period)
+var week_time_period= CALCULATE(DISTINCTCOUNT(Calender[week_num]),time_period)
+RETURN DIVIDE(rev_per_period,week_time_period,0)
+<img width="1209" height="231" alt="image" src="https://github.com/user-attachments/assets/33bc935a-3653-4825-84d7-244bee0efc2e" />
+
 ```
 
 **Business read:** A widening gap between the raw value and this average signals a recent limit change.
@@ -92,22 +87,16 @@ Compares current transaction amount against the same measure one month, and one 
 
 ```dax
 MoM % Growth =
-VAR PM =
-    CALCULATE(
-        [Total Trans Amt],
-        DATEADD('Date'[Date], -1, MONTH)
-    )
-RETURN
-DIVIDE([Total Trans Amt] - PM, PM)
+var MoM_pre=CALCULATE([total_trans_amount],DATEADD(Calender[Date],-1,MONTH))
+RETURN DIVIDE([total_trans_amount]-MoM_pre,MoM_pre,0)
+<img width="831" height="160" alt="image" src="https://github.com/user-attachments/assets/a6b2c713-7986-4e4d-8573-8ab502513057" />
 
-WoW % Growth =
-VAR PW =
-    CALCULATE(
-        [Total Trans Amt],
-        DATEADD('Date'[Date], -7, DAY)
-    )
-RETURN
-DIVIDE([Total Trans Amt] - PW, PW)
+
+WOW % Growth =
+var pre_week=CALCULATE([total_trans_amount],DATEADD(Calender[Date],-7,DAY))
+RETURN DIVIDE([total_trans_amount]-pre_week,pre_week,0)
+<img width="1163" height="124" alt="image" src="https://github.com/user-attachments/assets/36603929-d163-4fb0-964e-3e1e20e39c08" />
+
 ```
 
 **Business read:** Use WoW for operational alerts and MoM for board-level trend reporting.
@@ -118,10 +107,9 @@ Expresses what was spent to acquire clients as a percentage of the transaction r
 
 ```dax
 CAC to Trans Amt % =
-DIVIDE(
-    SUM(CC[Acquisition_Cost]),
-    [Total Trans Amt]
-)
+DIVIDE(SUM(credit_card[Customer_Acq_Cost]),[total_trans_amount])
+<img width="997" height="89" alt="image" src="https://github.com/user-attachments/assets/c396457e-eca4-4ff7-8334-75d86285f392" />
+
 ```
 
 **Business read:** A rising ratio over time means acquisition spend is outpacing the revenue it produces.
@@ -136,10 +124,12 @@ Rolls up every client's utilization ratio into one portfolio-level figure per ye
 
 ```dax
 Yearly Avg Utilization =
-CALCULATE(
-    AVERAGE(CC[Avg_Utilization_Ratio]),
-    ALLSELECTED(CC[CLIENTNUM])
+CALCULATE (
+    AVERAGE ( credit_card[Avg_Utilization_Ratio] ),
+    ALLEXCEPT ( credit_card, credit_card[current_year] )
 )
+<img width="876" height="195" alt="image" src="https://github.com/user-attachments/assets/ab40262b-a9e2-41ea-83bd-982ea8c5113e" />
+
 ```
 
 **Business read:** Trend this by year to spot whether the book is drifting toward heavier utilization.
@@ -150,10 +140,9 @@ Shows how much interest yield is being generated per client relative to the bala
 
 ```dax
 Interest % of Revolving Bal =
-DIVIDE(
-    SUM(CC[Interest_Earned]),
-    SUM(CC[Total_Revolving_Bal])
-)
+DIVIDE(SUM(credit_card[Interest_Earned]),SUM(credit_card[Total_Revolving_Bal]))
+<img width="1224" height="89" alt="image" src="https://github.com/user-attachments/assets/676784c6-fc1d-41b5-b298-9280a9d4bb19" />
+
 ```
 
 **Business read:** Compare this against the delinquency rate for the same client — high yield with high delinquency is a red flag, not a win.
@@ -164,13 +153,14 @@ Ranks clients dynamically within whatever filter context is active, so the leade
 
 ```dax
 Top 5 Trans Amt =
-CALCULATE(
-    [Total Trans Amt],
-    TOPN(
-        5, ALLSELECTED(CC[CLIENTNUM]),
-        [Total Trans Amt], DESC
-    )
-)
+SELECTCOLUMNS(
+ TOPN(5,
+SUMMARIZE(credit_card,credit_card[Client_Num],
+"total_transt",SUM(credit_card[Total_Trans_Amt])),
+[total_transt],DESC),"client_num",credit_card
+[Client_Num])
+<img width="786" height="266" alt="image" src="https://github.com/user-attachments/assets/d2bd508c-501b-4ba3-a9d6-1fc575c6d485" />
+
 ```
 
 **Business read:** Pair with `RANKX` as a visual-level filter to build a self-updating Top 5 table.
@@ -181,10 +171,9 @@ Counts and isolates the clients running their credit lines hot — the pool most
 
 ```dax
 High Utilization Clients =
-CALCULATE(
-    DISTINCTCOUNT(CC[CLIENTNUM]),
-    CC[Avg_Utilization_Ratio] > 0.8
-)
+IF( AVERAGE(credit_card[Avg_Utilization_Ratio])>0.8,"high_utilization","Normal")
+<img width="1239" height="89" alt="image" src="https://github.com/user-attachments/assets/f4ae46d7-8699-46d0-b4db-800a584dfd08" />
+
 ```
 
 **Business read:** Feed this count into a card visual alongside the total client count for an instant exposure ratio.
@@ -199,16 +188,11 @@ Flags any client with zero transaction amount across the trailing six months —
 
 ```dax
 Churn Flag =
-VAR Last6M =
-    CALCULATE(
-        [Total Trans Amt],
-        DATESINPERIOD(
-            'Date'[Date], MAX('Date'[Date]),
-            -6, MONTH
-        )
-    )
-RETURN
-IF(Last6M = 0, "Churned", "Active")
+var client_last_date=MAX(credit_card[Week_Start_Date])
+VAR dataset_last_date= CALCULATE(MAX(credit_card[Week_Start_Date]),ALL(credit_card))
+RETURN IF(DATEDIFF(client_last_date,dataset_last_date,DAY)>180,"churned","active")
+<img width="1299" height="160" alt="image" src="https://github.com/user-attachments/assets/7fd11cb9-a4e4-4212-9466-ad741e90128f" />
+
 ```
 
 **Business read:** Surface this as a KPI tile so retention teams can prioritise outreach before an account lapses further.
@@ -219,13 +203,12 @@ The share of the client base carrying at least one delinquent account — the si
 
 ```dax
 Delinquency Rate % =
-DIVIDE(
-    CALCULATE(
-        DISTINCTCOUNT(CC[CLIENTNUM]),
-        CC[Delinquent_Acc] > 0
-    ),
-    DISTINCTCOUNT(CC[CLIENTNUM])
-)
+var total_customer=DISTINCTCOUNT(credit_card[Client_Num])
+var delinquency=CALCULATE(DISTINCTCOUNT(credit_card[Client_Num]),FILTER(credit_card,credit_card
+[Delinquent_Acc]>0))
+RETURN DIVIDE(delinquency,total_customer,0)
+<img width="1465" height="195" alt="image" src="https://github.com/user-attachments/assets/3e263f7a-2414-42e2-85e4-bff3252b58dd" />
+
 ```
 
 **Business read:** Break this out by `Card_Category` to see whether risk concentrates in a specific tier.
@@ -236,16 +219,22 @@ A weighted composite of utilization, delinquency, and revolving balance, so each
 
 ```dax
 Credit Risk Score =
-VAR UtilPart = CC[Avg_Utilization_Ratio] * 100 * 0.4
-VAR DelinqPart =
-    MIN(CC[Delinquent_Acc] * 20, 100) * 0.35
-VAR RevolvPart =
-    DIVIDE(
-        CC[Total_Revolving_Bal],
-        MAXX(ALL(CC), CC[Total_Revolving_Bal])
-    ) * 100 * 0.25
+ var avg_utilization=AVERAGE(credit_card[Avg_Utilization_Ratio])*50
+ var Delinquent_Acc=AVERAGE(credit_card[Delinquent_Acc])*15
+ var revolv_ratio=DIVIDE(AVERAGE(credit_card[Total_Revolving_Bal]),
+ AVERAGE(credit_card[Credit_Limit]))
+ var revolv_score=revolv_ratio*35
+ var summ= avg_utilization+Delinquent_Acc+revolv_score
+ VAR score = summ
 RETURN
-UtilPart + DelinqPart + RevolvPart
+    SWITCH (
+        TRUE (),
+        score < 30, "Low",
+        score < 60, "Medium",
+        "High"
+    )
+<img width="1042" height="549" alt="image" src="https://github.com/user-attachments/assets/defa03c1-1899-4c05-ba24-5caa399befd5" />
+
 ```
 
 **Business read:** Weights (40/35/25) are a starting point — recalibrate them once you can validate the score against actual write-offs.
@@ -256,17 +245,19 @@ DAX has no built-in `CORREL`, so the Pearson coefficient is built by hand from i
 
 ```dax
 Income-CreditLimit Correlation =
-VAR N = COUNTROWS(CC)
-VAR SX = SUMX(CC, CC[Income])
-VAR SY = SUMX(CC, CC[creditLimit])
-VAR SXY = SUMX(CC, CC[Income] * CC[creditLimit])
-VAR SX2 = SUMX(CC, CC[Income] ^ 2)
-VAR SY2 = SUMX(CC, CC[creditLimit] ^ 2)
-VAR Num = (N * SXY) - (SX * SY)
-VAR Den =
-    SQRT((N * SX2 - SX ^ 2) * (N * SY2 - SY ^ 2))
-RETURN
-DIVIDE(Num, Den)
+var client_table = SUMMARIZE(credit_card,credit_card[Client_Num],"average_income",AVERAGE(customer[Income])
+,"average_credit",AVERAGE(credit_card[Credit_Limit]))
+var N=COUNTROWS(client_table)
+var Xsum=SUMX(client_table,[average_income])
+var Ysum=SUMX(client_table,[average_credit])
+var XYsum=SUMX(client_table,[average_credit]*[average_income])
+VAR Xsum2=SUMX(client_table,[average_income]^2)
+var Ysum2=SUMX(client_table,[average_credit]^2)
+var numerator=(n*XYsum)-(Xsum*Ysum)
+var denomerator=SQRT(((n*Xsum2)-(Xsum^2))*
+((n*Ysum2)-(Ysum^2)))
+RETURN DIVIDE( numerator,denomerator,0)<img width="1647" height="478" alt="image" src="https://github.com/user-attachments/assets/37ea5014-08c3-4051-8872-954fdfc026ce" />
+
 ```
 
 **Business read:** A coefficient near 1 supports income-based limit setting; near 0 suggests other factors drive limit decisions.
@@ -282,6 +273,8 @@ One reusable measure that recalculates automatically for whichever `Card_Categor
 ```dax
 Avg Satisfaction Score =
 AVERAGE(CC[Cust_Satisfaction_Score])
+<img width="469" height="408" alt="image" src="https://github.com/user-attachments/assets/8b86265a-12ec-449d-8eb2-2c1dc7d14bf6" />
+
 ```
 
 **Business read:** Place on a clustered bar by `Card_Category` — a satisfaction gap between tiers usually points to a benefits or service issue.
@@ -302,6 +295,8 @@ CALCULATE(
     AVERAGE(CC[creditLimit]),
     CC[Personal_loan] = "No"
 )
+<img width="1163" height="195" alt="image" src="https://github.com/user-attachments/assets/3d651076-0eb7-42cf-8ac8-915bbb591e83" />
+
 ```
 
 **Business read:** A wide gap suggests credit limit is a meaningful input — or an output — of the loan approval decision.
@@ -312,14 +307,12 @@ Combines two conditions — revolving balance above 90% of the limit, and utiliz
 
 ```dax
 High Risk Flag =
-VAR UtilPct = CC[Avg_Utilization_Ratio]
-VAR BalRatio =
-    DIVIDE(CC[Total_Revolving_Bal], CC[creditLimit])
-RETURN
-IF(
-    BalRatio > 0.9 && UtilPct > 0.8,
-    "High Risk", "Low Risk"
-)
+var revolvingratio=DIVIDE(AVERAGE(credit_card[Total_Revolving_Bal]),
+AVERAGE(credit_card[Credit_Limit]),0)
+var utilization_ratio= AVERAGE(credit_card[Avg_Utilization_Ratio])
+RETURN if(revolvingratio<0.9 && utilization_ratio>0.7,"High_flag","normal")
+![Uploading image.png…]()
+
 ```
 
 **Business read:** This is the tightest of the three risk lenses — use it to prioritise the shortlist for manual review.
