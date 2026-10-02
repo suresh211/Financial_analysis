@@ -18,7 +18,6 @@ credit-card-dax-analytics/
 └── images/screenshots/                    # report screenshots
 ```
 
-> **Note on the data:** `data/raw` and `data/clean` in this repo are a synthetic sample built to the same schema as the source dataset, for structure and practice. Replace both with your actual cleaned/raw files before treating any numbers here as findings — see `reports/findings.md`.
 
 ## Table of Contents
 
